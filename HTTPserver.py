@@ -29,19 +29,25 @@ class HTTPServer:
         return "\r\n".join(headers).encode()
 
     def run(self):
-        self.udp.handshake_server()
         try:
             while True:
-                data, flags = self.udp.receive_packet()
-                if flags & self.udp.FLAG_FIN:
-                    break
-                method, path, headers, body = self.parse_request(data)
-                if method == "GET" and path == "/":
-                    response = self.create_response("200 OK", "Hello, World!")
-                elif method == "POST" and path == "/":
-                    response = self.create_response("200 OK", f"Received: {body}")
-                else:
-                    response = self.create_response("404 Not Found", "Not Found")
-                self.udp.send_packet(response)
-        finally:
+                self.udp.handshake_server()
+                while True:
+                    try:
+                        data, flags = self.udp.receive_packet()
+                        if flags & self.udp.FLAG_FIN:
+                            break
+                        method, path, headers, body = self.parse_request(data)
+                        if method == "GET" and path == "/":
+                            response = self.create_response("200 OK", "Hello, World!")
+                        elif method == "POST" and path == "/":
+                            response = self.create_response("200 OK", f"Received: {body}")
+                        else:
+                            response = self.create_response("404 Not Found", "Not Found")
+                        self.udp.send_packet(response)
+                    except ConnectionError:
+                        break
+                self.udp.close()
+                self.udp = ReliableUDP.ReliableUDP("localhost", 8080)  # Rebind for new session
+        except KeyboardInterrupt:
             self.udp.close()

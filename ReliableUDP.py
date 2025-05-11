@@ -13,7 +13,7 @@ class ReliableUDP:
 
     def __init__(self, local_host, local_port, remote_host="", remote_port=0):
         self.sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-        self.sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)  # Allow port reuse
+        self.sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)  # Ensure port reuse
         self.sock.bind((local_host, local_port))
         self.remote_addr = (remote_host, remote_port) if remote_host and remote_port else None
         self.seq_num = 0
@@ -48,7 +48,7 @@ class ReliableUDP:
         if not self.remote_addr:
             raise ValueError("Remote address not set")
         self.sock.settimeout(self.timeout)
-        for attempt in range(5):  # Increase retries to handle resets
+        for _ in range(5):  # Robust retries
             try:
                 packet = self.create_packet(self.seq_num, 0, self.FLAG_SYN, b"")
                 if random.random() >= self.loss_prob:
@@ -63,7 +63,7 @@ class ReliableUDP:
                     self.sock.sendto(ack_packet, self.remote_addr)
                     return True
             except (socket.timeout, socket.error):
-                time.sleep(0.1 * (attempt + 1))  # Exponential backoff
+                time.sleep(0.1)  # Brief delay between retries
                 continue
         raise ConnectionError("Handshake failed after multiple attempts")
 
@@ -78,20 +78,26 @@ class ReliableUDP:
                     self.ack_num = seq_num + 1
                     synack_packet = self.create_packet(self.seq_num, self.ack_num, self.FLAG_SYNACK, b"")
                     self.sock.sendto(synack_packet, self.remote_addr)
-                    response, addr = self.sock.recvfrom(1024)
-                    seq_num, ack_num, flags, checksum, data = self.parse_packet(response)
-                    if self.verify_checksum(data, checksum) and flags == self.FLAG_ACK and ack_num == self.seq_num + 1:
-                        self.seq_num += 1
-                        return True
+
+                    # Loop waiting for the ACK
+                    for _ in range(5):  # Allow retries
+                        try:
+                            response, _ = self.sock.recvfrom(1024)
+                            seq_num, ack_num, flags, checksum, data = self.parse_packet(response)
+                            if self.verify_checksum(data, checksum) and flags == self.FLAG_ACK and ack_num == self.seq_num + 1:
+                                self.seq_num += 1
+                                return True
+                        except (socket.timeout, socket.error):
+                            continue
             except (socket.timeout, socket.error):
                 continue
         raise ConnectionError("Handshake failed")
 
+
     def send_packet(self, data, flags=0):
         if not self.is_open:
             raise ValueError("Socket is closed")
-        max_retries = 5
-        for _ in range(max_retries):
+        for _ in range(5):
             if random.random() < self.loss_prob:
                 continue
             packet = self.create_packet(self.seq_num, self.ack_num, flags, data)
@@ -146,9 +152,9 @@ class ReliableUDP:
             try:
                 packet = self.create_packet(self.seq_num, self.ack_num, self.FLAG_FIN, b"")
                 self.sock.sendto(packet, self.remote_addr)
-                time.sleep(0.1)  # Brief delay to allow ACK
+                time.sleep(0.1)  # Allow time for ACK
             except socket.error:
-                pass  # Ignore errors on close
+                pass
             finally:
                 self.is_open = False
                 self.sock.close()

@@ -17,7 +17,7 @@ class HTTPClient:
         except Exception as e:
             return f"Error: {str(e)}"
         finally:
-            time.sleep(0.2)  # Increased delay to ensure server processes
+            time.sleep(1)  # Increased delay to ensure server processes
             udp.close()
 
     def get(self, path):
