@@ -97,6 +97,7 @@ class ReliableUDP:
     def send_packet(self, data, flags=0):
         if not self.is_open:
             raise ValueError("Socket is closed")
+        data_length = len(data)
         for _ in range(5):
             if random.random() < self.loss_prob:
                 continue
@@ -110,8 +111,8 @@ class ReliableUDP:
             try:
                 response, _ = self.sock.recvfrom(1024)
                 seq_num, ack_num, flags, checksum, data = self.parse_packet(response)
-                if self.verify_checksum(data, checksum) and flags == self.FLAG_ACK and ack_num == self.seq_num + 1:
-                    self.seq_num += 1
+                if self.verify_checksum(data, checksum) and flags == self.FLAG_ACK and ack_num == self.seq_num + data_length + 1:
+                    self.seq_num += 1  # Increment seq_num by 1 per packet (for now)
                     return
             except (socket.timeout, socket.error):
                 continue
@@ -130,7 +131,8 @@ class ReliableUDP:
                         self.sock.sendto(ack_packet, self.remote_addr)
                         return b"", flags
                     if seq_num == self.ack_num:
-                        self.ack_num += 1
+                        data_length = len(data)  # Get the length of the received data
+                        self.ack_num += data_length + 1  # Increment by data length + 1 (for seq_num progression)
                         ack_packet = self.create_packet(self.seq_num, self.ack_num, self.FLAG_ACK, b"")
                         self.sock.sendto(ack_packet, self.remote_addr)
                         return data, flags
