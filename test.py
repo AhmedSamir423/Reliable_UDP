@@ -19,6 +19,8 @@ def test_get_request():
     client.close()
     expected = "HTTP/1.0 200 OK\r\nContent-Type: text/plain\r\nContent-Length: 13\r\n\r\nHello, World!"
     print("GET request test:", "Passed" if response == expected else f"Failed (got {response})")
+    print("Expected:", expected)
+    print("Response:", response)
     return response == expected
 
 def test_post_request():
@@ -39,6 +41,7 @@ def test_post_request():
     ]
     is_valid = all(comp in response for comp in required_components)
     print("POST request test:", "Passed" if is_valid else f"Failed (got {response})")
+    print("Expected components:", required_components)
     return is_valid
 
 def test_not_found():
@@ -52,6 +55,8 @@ def test_not_found():
     client.close()
     expected = "HTTP/1.0 404 Not Found\r\nContent-Type: text/plain\r\nContent-Length: 9\r\n\r\nNot Found"
     print("Not Found test:", "Passed" if response == expected else f"Failed (got {response})")
+    print("Expected:", expected)
+    print("Response:", response)
     return response == expected
 
 def test_checksum_failure():
